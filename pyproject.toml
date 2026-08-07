@@ -1,0 +1,60 @@
+[project]
+name = "personal-finance-assistant-backend"
+version = "0.1.0"
+description = "Sync server for the PersonalFinanceAssistant Android app"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.14.0",
+    "argon2-cffi>=23.1.0",
+    "asyncpg>=0.30.0",
+    "fastapi[standard]>=0.115.0",
+    "pydantic-settings>=2.7.0",
+    "pyjwt>=2.10.0",
+    "scalar-fastapi>=1.0.3",
+    "slowapi>=0.1.9",
+    "sqlalchemy[asyncio]>=2.0.36",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.0",
+    "mypy>=1.14.0",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.25.0",
+    "ruff>=0.9.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["src/tests"]
+asyncio_mode = "auto"
+# Every test coroutine gets a fresh event loop, but session-scoped async
+# fixtures (the engine, the one-time migration run) need a loop that outlives
+# the test. Without this they would be torn down after the first test.
+asyncio_default_fixture_loop_scope = "session"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC"]
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["pydantic.mypy"]
+disallow_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+# src/modules/* and src/utils/* are namespace packages with no __init__.py, the
+# same layout the reference backend uses. Without these two settings mypy sees
+# src/modules/auth/views.py and src/modules/health/views.py as one module named
+# "views" and refuses to check anything.
+explicit_package_bases = true
+mypy_path = "."
+# Alembic's generated migration modules are not worth annotating.
+exclude = "^alembic/versions/"
+
+[[tool.mypy.overrides]]
+module = ["slowapi.*", "scalar_fastapi.*", "asyncpg.*"]
+ignore_missing_imports = true

@@ -1,0 +1,26 @@
+from typing import Annotated
+
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.modules.sync.dtos import SyncRequest, SyncResponse
+from src.modules.sync.services import SyncService
+from src.shared.database import get_session
+from src.shared.dependencies import CurrentUserId
+
+sync_router = APIRouter(prefix="/v1", tags=["sync"])
+sync_service = SyncService()
+
+SessionDep = Annotated[AsyncSession, Depends(get_session)]
+
+
+@sync_router.post("/sync", response_model=SyncResponse)
+async def sync(
+    payload: SyncRequest, user_id: CurrentUserId, session: SessionDep
+) -> SyncResponse:
+    """Delta sync. One round trip does both directions.
+
+    Safe to retry: the client syncs over a mobile network and will resend on
+    timeout, quite possibly after the server already committed.
+    """
+    return await sync_service.sync(session, user_id, payload)

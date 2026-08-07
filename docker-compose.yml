@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: pfa
+      POSTGRES_PASSWORD: pfa
+      POSTGRES_DB: pfa
+    ports:
+      # 5433 on the host: a natively-installed Postgres commonly holds 5432,
+      # and it wins the bind for localhost, so the container would be shadowed.
+      - "5433:5432"
+    volumes:
+      - pfa_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # The api container waits on this rather than on the port being open —
+      # Postgres accepts connections briefly before it is ready to serve.
+      test: ["CMD-SHELL", "pg_isready -U pfa -d pfa"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://pfa:pfa@db:5432/pfa
+      SECRET_KEY: dev-secret-key-not-for-production-at-least-32-chars
+      DEBUG: "True"
+    ports:
+      - "8000:8000"
+    # Migrations run here, explicitly, not at import time in app.py.
+    command: sh -c "alembic upgrade head && python app.py"
+
+volumes:
+  pfa_pgdata:

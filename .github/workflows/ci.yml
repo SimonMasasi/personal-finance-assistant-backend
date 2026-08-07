@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      # A real Postgres, not SQLite. The sync upsert relies on ON CONFLICT and
+      # the users table on CITEXT; SQLite would exercise neither faithfully, so
+      # a green suite against it would prove nothing about the behaviour that
+      # matters.
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: pfa
+          POSTGRES_PASSWORD: pfa
+          POSTGRES_DB: pfa
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U pfa -d pfa"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://pfa:pfa@localhost:5433/pfa_test
+      SECRET_KEY: ci-secret-key-for-testing-only-at-least-32-chars
+      DEBUG: "False"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Run migrations
+        # Explicitly, against the dev database. The suite migrates its own
+        # test database; this step proves `alembic upgrade head` works from
+        # scratch on a database that has never seen this schema.
+        run: uv run alembic upgrade head
+        env:
+          DATABASE_URL: postgresql+asyncpg://pfa:pfa@localhost:5433/pfa
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Type check
+        run: uv run mypy .
+
+      - name: Test
+        run: uv run pytest -q
