@@ -6,11 +6,13 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.14.0",
-    "argon2-cffi>=23.1.0",
     "asyncpg>=0.30.0",
     "fastapi[standard]>=0.115.0",
     "pydantic-settings>=2.7.0",
-    "pyjwt>=2.10.0",
+    # [crypto] pulls in `cryptography`, which is what makes RS256 verification
+    # possible — Google signs ID tokens with RSA, while our own access tokens
+    # are HS256. One JWT library for both rather than a second one alongside it.
+    "pyjwt[crypto]>=2.10.0",
     "scalar-fastapi>=1.0.3",
     "slowapi>=0.1.9",
     "sqlalchemy[asyncio]>=2.0.36",

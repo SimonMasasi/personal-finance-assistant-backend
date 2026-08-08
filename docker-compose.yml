@@ -27,6 +27,8 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://pfa:pfa@db:5432/pfa
       SECRET_KEY: dev-secret-key-not-for-production-at-least-32-chars
+      # The WEB OAuth client id, not the Android one.
+      GOOGLE_CLIENT_IDS: your-web-client-id.apps.googleusercontent.com
       DEBUG: "True"
     ports:
       - "8000:8000"

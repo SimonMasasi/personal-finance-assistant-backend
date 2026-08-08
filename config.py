@@ -8,6 +8,17 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     SECRET_KEY: str
 
+    # Comma-separated, and required for the same reason as SECRET_KEY: an empty
+    # audience means accepting an ID token minted for somebody else's app.
+    #
+    # THIS IS THE **WEB** CLIENT ID, NOT THE ANDROID ONE. The Android OAuth
+    # client (bound to package name + SHA-1) authorises the sign-in request but
+    # never appears in the token; @react-native-google-signin is given the web
+    # client id as `webClientId` and Google mints the ID token with that in
+    # `aud`. Putting the Android id here makes every sign-in fail with a
+    # deliberately generic 401 that reads like a signature problem.
+    GOOGLE_CLIENT_IDS: str
+
     APP_NAME: str = "Personal Finance Assistant"
     APP_HOST: str = "0.0.0.0"
     APP_PORT: int = 8000
@@ -40,9 +51,16 @@ class Settings(BaseSettings):
     # refusing a body large enough to be a memory-exhaustion attempt.
     MAX_REQUEST_BYTES: int = 2 * 1024 * 1024
 
+    # Google's signing keys rotate; cache them rather than fetching per request.
+    GOOGLE_JWKS_CACHE_SECONDS: int = 3600
+    # Deliberately shorter than PyJWT's 30s default, so a Google outage fails
+    # fast instead of holding a worker thread open for half a minute.
+    GOOGLE_JWKS_TIMEOUT_SECONDS: float = 5.0
+    # Phone clocks drift, and an ID token is only valid for an hour.
+    GOOGLE_ID_TOKEN_LEEWAY_SECONDS: int = 60
+
     # Rate limits for the auth endpoints, in slowapi's notation.
-    RATE_LIMIT_LOGIN: str = "10/minute"
-    RATE_LIMIT_REGISTER: str = "5/minute"
+    RATE_LIMIT_GOOGLE: str = "10/minute"
     RATE_LIMIT_REFRESH: str = "30/minute"
 
     CORS_ALLOW_ORIGINS: str = "*"

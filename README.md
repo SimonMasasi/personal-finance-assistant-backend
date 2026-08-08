@@ -56,7 +56,7 @@ from a bank SMS and it names real people. The log filter redacts it.
 | ORM | async SQLAlchemy 2.0 with `asyncpg` |
 | Migrations | Alembic — every schema change, no `create_all()` anywhere |
 | Schemas | Pydantic v2 |
-| Passwords | Argon2id (`argon2-cffi`) |
+| Identity | Google Sign-In. No passwords are stored, hashed or reset — the column is gone. |
 | Tokens | PyJWT access tokens; opaque, hashed, rotating refresh tokens |
 | Rate limiting | slowapi |
 | Package manager | `uv` |
@@ -232,8 +232,7 @@ All endpoints are `/v1`. Bodies are bare snake_case JSON — no envelope.
 |---|---|---|---|---|
 | `GET` | `/health` | — | — | `{status}` |
 | `GET` | `/health/ready` | — | — | `{status, database}` |
-| `POST` | `/v1/auth/register` | — | `{email, password, display_name}` | 201 `{access, refresh, user}` |
-| `POST` | `/v1/auth/login` | — | `{email, password}` | `{access, refresh, user}` |
+| `POST` | `/v1/auth/google` | — | `{id_token}` | `{access, refresh, user}` |
 | `POST` | `/v1/auth/refresh` | — | `{refresh}` | `{access, refresh}` |
 | `POST` | `/v1/devices` | Bearer | `{device_id}` | 204 |
 | `POST` | `/v1/sync` | Bearer | `{cursor, changes[]}` | `{cursor, changes[], server_time, has_more}` |
@@ -320,11 +319,13 @@ not.** The client currently declares:
 
 ```ts
 export type AuthUser = { id: string; email: string; displayName: string };
-export type AuthResponse = { token: string; user: AuthUser };   // one token, no refresh
+export type AuthResponse = { access: string; refresh: string; user: AuthUser };
+
 export interface ApiAdapter {
-  login(req: LoginRequest): Promise<AuthResponse>;
-  register(req: RegisterRequest): Promise<AuthResponse>;
-  registerDevice(deviceId: string, token: string): Promise<void>;
+  googleSignIn(req: { idToken: string }): Promise<AuthResponse>;
+  refresh(refreshToken: string): Promise<{ access: string; refresh: string }>;
+  registerDevice(deviceId: string, accessToken: string): Promise<void>;
+  sync(req: SyncRequest, accessToken: string): Promise<SyncResponse>;
 }
 ```
 
@@ -375,3 +376,33 @@ Things worth knowing before this goes anywhere near production.
 7. **No parsing, no categorisation, no background jobs, no push notifications.** The device
    parses; the server stores. Server-side rules would drift from the client's and produce two
    different answers for one message.
+
+## Google Sign-In
+
+There is one entry point, `POST /v1/auth/google`. The device obtains a Google ID
+token and exchanges it here; the server verifies it and issues its own access +
+refresh pair. Everything downstream — rotation, revocation, `/v1/sync` — is
+unchanged and knows nothing about how the user proved who they were.
+
+`GOOGLE_CLIENT_IDS` must be the **Web** OAuth client ID, not the Android one.
+The Android client (package name + SHA-1) authorises the sign-in on the device
+but never appears in the token: the app passes the web client ID as
+`webClientId`, and Google puts that in `aud`. Getting this backwards fails every
+sign-in with a deliberately generic 401 that reads like a signature problem.
+
+The response is **200 whether or not the account already existed**. A
+201-on-create would tell any caller holding a valid token whether that email was
+already registered.
+
+### A session for the client's integration test
+
+Sign-in needs a real Google token, which an unattended test cannot obtain. Rather
+than add a debug bypass to the endpoint, mint one directly:
+
+```bash
+eval "$(uv run python scripts/mint_test_session.py --email live@example.com)"
+```
+
+It calls the same two functions `/v1/auth/google` calls, so its tokens are
+indistinguishable from real ones, and it refuses to run against a non-local
+database.

@@ -17,9 +17,14 @@ os.environ.setdefault("DEBUG", "False")
 # The suite creates far more accounts and logins per minute than a human would.
 # Rate limiting is verified separately in test_hardening.py by inspecting the
 # configured limits rather than by trying to trip them.
-os.environ.setdefault("RATE_LIMIT_LOGIN", "10000/minute")
-os.environ.setdefault("RATE_LIMIT_REGISTER", "10000/minute")
+os.environ.setdefault("RATE_LIMIT_GOOGLE", "10000/minute")
 os.environ.setdefault("RATE_LIMIT_REFRESH", "10000/minute")
+
+# Required in production, so it must be pinned here or collection dies at
+# config.py import. The value is the audience the fake tokens are minted for.
+os.environ.setdefault(
+    "GOOGLE_CLIENT_IDS", "test-web-client.apps.googleusercontent.com"
+)
 
 # Small enough to exercise the paging path without inserting 500 rows.
 os.environ.setdefault("SYNC_MAX_PULL", "5")

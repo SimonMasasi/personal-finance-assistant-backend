@@ -1,118 +1,101 @@
 import pytest
 from httpx import AsyncClient
 
-from src.tests.conftest import TEST_PASSWORD, auth_headers, register_user
+from src.tests.conftest import auth_headers, google_token, register_user
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
-REGISTER_URL = "/v1/auth/register"
-LOGIN_URL = "/v1/auth/login"
+GOOGLE_URL = "/v1/auth/google"
 REFRESH_URL = "/v1/auth/refresh"
 DEVICES_URL = "/v1/devices"
 
 
-class TestRegister:
-    async def test_register_returns_tokens_and_user(self, client: AsyncClient) -> None:
+class TestGoogleSignIn:
+    """The verifier is stubbed here (see conftest); signature checking lives in
+    unit/test_google_auth.py. These cover what happens once a token is trusted."""
+
+    async def test_first_sign_in_creates_the_account(self, client: AsyncClient) -> None:
         response = await client.post(
-            REGISTER_URL,
-            json={
-                "email": "new@example.com",
-                "password": TEST_PASSWORD,
-                "display_name": "New User",
-            },
+            GOOGLE_URL, json={"id_token": google_token("new@example.com", display_name="New User")}
         )
-        assert response.status_code == 201
+        assert response.status_code == 200
         body = response.json()
 
         assert body["access"] and body["refresh"]
-        # snake_case, per the wire-format decision. The client's AuthUser type
-        # uses displayName and needs updating — see the README.
+        # snake_case on the wire; the client maps display_name -> displayName
+        # at its adapter boundary and nowhere else.
         assert body["user"]["email"] == "new@example.com"
         assert body["user"]["display_name"] == "New User"
+        # Nothing about credentials should ever appear here.
         assert "password" not in body["user"]
-        assert "password_hash" not in body["user"]
+        assert "id_token" not in body["user"]
+        assert "google_sub" not in body["user"]
 
-    async def test_duplicate_email_is_conflict(self, client: AsyncClient) -> None:
-        payload = {
-            "email": "dupe@example.com",
-            "password": TEST_PASSWORD,
-            "display_name": "Dupe",
-        }
-        assert (await client.post(REGISTER_URL, json=payload)).status_code == 201
-        second = await client.post(REGISTER_URL, json=payload)
-        assert second.status_code == 409
-
-    async def test_duplicate_email_is_case_insensitive(self, client: AsyncClient) -> None:
-        """CITEXT: Alice@... and alice@... are the same account."""
-        await client.post(
-            REGISTER_URL,
-            json={"email": "Case@Example.com", "password": TEST_PASSWORD, "display_name": "A"},
-        )
-        second = await client.post(
-            REGISTER_URL,
-            json={"email": "case@example.com", "password": TEST_PASSWORD, "display_name": "B"},
-        )
-        assert second.status_code == 409
-
-    async def test_login_is_case_insensitive(self, client: AsyncClient) -> None:
-        await client.post(
-            REGISTER_URL,
-            json={"email": "Mixed@Example.com", "password": TEST_PASSWORD, "display_name": "M"},
-        )
-        response = await client.post(
-            LOGIN_URL, json={"email": "mixed@example.com", "password": TEST_PASSWORD}
-        )
-        assert response.status_code == 200
-
-    @pytest.mark.parametrize("password", ["short1", "nodigitshere", "12345678"])
-    async def test_weak_password_is_rejected(
-        self, client: AsyncClient, password: str
-    ) -> None:
-        response = await client.post(
-            REGISTER_URL,
-            json={"email": "weak@example.com", "password": password, "display_name": "W"},
-        )
-        assert response.status_code == 422
-
-    async def test_invalid_email_is_rejected(self, client: AsyncClient) -> None:
-        response = await client.post(
-            REGISTER_URL,
-            json={"email": "not-an-email", "password": TEST_PASSWORD, "display_name": "X"},
-        )
-        assert response.status_code == 422
-
-
-class TestLogin:
-    async def test_login_succeeds(self, client: AsyncClient) -> None:
-        await register_user(client, "login@example.com")
-        response = await client.post(
-            LOGIN_URL, json={"email": "login@example.com", "password": TEST_PASSWORD}
-        )
-        assert response.status_code == 200
-        assert response.json()["access"]
-
-    async def test_wrong_password_is_401(self, client: AsyncClient) -> None:
-        await register_user(client, "wrongpw@example.com")
-        response = await client.post(
-            LOGIN_URL, json={"email": "wrongpw@example.com", "password": "Wrong@9999"}
-        )
-        assert response.status_code == 401
-
-    async def test_unknown_email_gives_the_same_error_as_a_wrong_password(
+    async def test_signing_in_again_reuses_the_same_account(
         self, client: AsyncClient
     ) -> None:
-        """Identical status and message, so login cannot enumerate accounts."""
-        await register_user(client, "known@example.com")
+        """The invariant the old duplicate-email conflict used to carry."""
+        first = await register_user(client, "repeat@example.com")
+        second = await register_user(client, "repeat@example.com")
 
-        wrong_password = await client.post(
-            LOGIN_URL, json={"email": "known@example.com", "password": "Wrong@9999"}
-        )
-        unknown_email = await client.post(
-            LOGIN_URL, json={"email": "nobody@example.com", "password": "Wrong@9999"}
-        )
+        assert first["user_id"] == second["user_id"]
+        # ...but a fresh session each time.
+        assert first["refresh"] != second["refresh"]
 
-        assert wrong_password.status_code == unknown_email.status_code == 401
-        assert wrong_password.json() == unknown_email.json()
+    async def test_the_subject_is_the_identity_not_the_email(
+        self, client: AsyncClient
+    ) -> None:
+        """A user can change their Google address and must keep their account —
+        and with it, every transaction they have ever synced."""
+        before = await register_user(client, "old@example.com", sub="stable-sub")
+        after = await register_user(client, "renamed@example.com", sub="stable-sub")
+
+        assert before["user_id"] == after["user_id"]
+
+        me = await client.post(
+            GOOGLE_URL, json={"id_token": google_token("renamed@example.com", sub="stable-sub")}
+        )
+        assert me.json()["user"]["email"] == "renamed@example.com"
+
+    async def test_a_second_google_account_cannot_claim_a_taken_email(
+        self, client: AsyncClient
+    ) -> None:
+        """Silently reassigning the row would hand one person another's data."""
+        await register_user(client, "taken@example.com", sub="sub-one")
+
+        response = await client.post(
+            GOOGLE_URL, json={"id_token": google_token("taken@example.com", sub="sub-two")}
+        )
+        assert response.status_code == 409
+
+    async def test_an_unverifiable_token_is_401(self, client: AsyncClient) -> None:
+        response = await client.post(GOOGLE_URL, json={"id_token": "not-a-real-token"})
+        assert response.status_code == 401
+
+    async def test_the_body_accepts_nothing_but_the_token(
+        self, client: AsyncClient
+    ) -> None:
+        """extra="forbid": everything about the user comes from the verified
+        token, so a body trying to supply an email must be refused outright."""
+        response = await client.post(
+            GOOGLE_URL,
+            json={
+                "id_token": google_token("honest@example.com"),
+                "email": "attacker@example.com",
+            },
+        )
+        assert response.status_code == 422
+
+    async def test_case_differing_emails_are_one_account(
+        self, client: AsyncClient
+    ) -> None:
+        """CITEXT still earns its place: Google normalises addresses, but the
+        database guarantee is what stops two rows existing."""
+        await register_user(client, "Case@Example.com", sub="sub-case")
+        response = await client.post(
+            GOOGLE_URL, json={"id_token": google_token("case@example.com", sub="sub-other")}
+        )
+        assert response.status_code == 409
 
 
 class TestRefreshRotation:

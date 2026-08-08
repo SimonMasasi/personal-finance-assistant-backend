@@ -49,7 +49,7 @@ class TestRateLimitConfiguration:
         from src.shared.rate_limit import limiter
 
         registered = set(limiter._route_limits)
-        for handler in ("register", "login", "refresh"):
+        for handler in ("google_sign_in", "refresh"):
             key = f"src.modules.auth.views.{handler}"
             assert key in registered, f"{handler} is not rate limited"
 

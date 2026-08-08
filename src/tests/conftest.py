@@ -11,10 +11,10 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 
 from config import SETTINGS
+from src.shared.errors import AuthError
+from src.utils.google_auth import GoogleIdentity
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-
-TEST_PASSWORD = "Test@1234"
 
 # Tables the suite empties between tests. `alembic_version` is excluded on
 # purpose — wiping it would make the next test re-run every migration.
@@ -96,15 +96,56 @@ async def client() -> AsyncIterator[AsyncClient]:
         yield ac
 
 
+def google_token(
+    email: str, sub: str | None = None, display_name: str = "Test User"
+) -> str:
+    """The fake verifier's wire format — the identity is the token.
+
+    Deliberately not a real JWT: a test that mints something JWT-shaped invites
+    the reader to think signature verification is being exercised here. It is
+    not, and it should not be — that is `unit/test_google_auth.py`'s job, with
+    real RSA keys. These tests are about what happens *after* a token verifies.
+    """
+    return f"test|{sub or f'sub-{email}'}|{email}|{display_name}"
+
+
+class _FakeGoogleVerifier:
+    async def verify(self, id_token: str) -> GoogleIdentity:
+        if not id_token.startswith("test|"):
+            raise AuthError("Could not verify your Google sign-in.")
+        _, sub, email, display_name = id_token.split("|", 3)
+        return GoogleIdentity(sub=sub, email=email, display_name=display_name)
+
+
+@pytest.fixture(autouse=True)
+def _stub_google_verifier(monkeypatch: pytest.MonkeyPatch) -> None:
+    """autouse, so no test in this package can reach Google even by accident.
+
+    The seam is one attribute on the module-level `auth_service`, patched from
+    test code only — production has no branch for this.
+    """
+    from src.modules.auth.views import auth_service
+
+    monkeypatch.setattr(auth_service, "google", _FakeGoogleVerifier())
+
+
 async def register_user(
-    client: AsyncClient, email: str, display_name: str = "Test User"
+    client: AsyncClient,
+    email: str,
+    display_name: str = "Test User",
+    sub: str | None = None,
 ) -> dict[str, str]:
-    """Register and return {access, refresh, user_id}."""
+    """Sign in with Google and return {access, refresh, user_id}.
+
+    Same signature as the password version it replaces, so every caller —
+    user_a, user_b, and all of test_sync / test_hardening — is untouched.
+    """
     response = await client.post(
-        "/v1/auth/register",
-        json={"email": email, "password": TEST_PASSWORD, "display_name": display_name},
+        "/v1/auth/google", json={"id_token": google_token(email, sub, display_name)}
     )
-    assert response.status_code == 201, response.text
+    # 200 whether the account was just created or already existed; see
+    # AuthService.google_sign_in.
+    assert response.status_code == 200, response.text
     body = response.json()
     return {
         "access": body["access"],

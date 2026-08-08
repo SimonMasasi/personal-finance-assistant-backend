@@ -7,9 +7,8 @@ from config import SETTINGS
 from src.modules.auth.dtos import (
     AuthResponse,
     DeviceRequest,
-    LoginRequest,
+    GoogleSignInRequest,
     RefreshRequest,
-    RegisterRequest,
     TokenPairResponse,
 )
 from src.modules.auth.services import AuthService
@@ -26,22 +25,15 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 # Every rate-limited handler must accept both `request` (slowapi reads the
 # client address off it) and `response` (it writes the X-RateLimit-* headers
 # onto it), even when the body is all the handler itself needs.
-@auth_router.post(
-    "/auth/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED
-)
-@limiter.limit(SETTINGS.RATE_LIMIT_REGISTER)
-async def register(
-    request: Request, response: Response, payload: RegisterRequest, session: SessionDep
+#
+# One endpoint for sign-up and sign-in both, always 200 — see the docstring on
+# `AuthService.google_sign_in` for why the status must not vary.
+@auth_router.post("/auth/google", response_model=AuthResponse)
+@limiter.limit(SETTINGS.RATE_LIMIT_GOOGLE)
+async def google_sign_in(
+    request: Request, response: Response, payload: GoogleSignInRequest, session: SessionDep
 ) -> AuthResponse:
-    return await auth_service.register(session, payload)
-
-
-@auth_router.post("/auth/login", response_model=AuthResponse)
-@limiter.limit(SETTINGS.RATE_LIMIT_LOGIN)
-async def login(
-    request: Request, response: Response, payload: LoginRequest, session: SessionDep
-) -> AuthResponse:
-    return await auth_service.login(session, payload)
+    return await auth_service.google_sign_in(session, payload)
 
 
 @auth_router.post("/auth/refresh", response_model=TokenPairResponse)

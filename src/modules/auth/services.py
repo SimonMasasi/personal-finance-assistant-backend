@@ -8,21 +8,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.modules.auth.dtos import (
     AuthResponse,
     DeviceRequest,
-    LoginRequest,
+    GoogleSignInRequest,
     RefreshRequest,
-    RegisterRequest,
     TokenPairResponse,
     UserDTO,
 )
 from src.modules.auth.models import Device, RefreshToken, User
-from src.shared.errors import AuthError, ConflictError, ValidationError
+from src.shared.errors import AuthError, ConflictError
+from src.utils.google_auth import GoogleIdentity, GoogleIdTokenVerifier
 from src.utils.jwt_auth import JWTAuth
-from src.utils.passwords import PasswordManager
 
 
 class AuthService:
     def __init__(self) -> None:
         self.jwt = JWTAuth()
+        # Held as an attribute for the same reason as `jwt`: it makes the
+        # verifier one swappable object, which is the whole test seam. There is
+        # no debug flag and no bypass anywhere in this module.
+        self.google = GoogleIdTokenVerifier()
 
     # ── helpers ───────────────────────────────────────────────────────────
 
@@ -42,52 +45,62 @@ class AuthService:
         await session.flush()
         return raw, row
 
-    # ── register ──────────────────────────────────────────────────────────
+    # ── sign in with Google ───────────────────────────────────────────────
 
-    async def register(self, session: AsyncSession, payload: RegisterRequest) -> AuthResponse:
-        strong, message = PasswordManager.is_strong_password(payload.password)
-        if not strong:
-            raise ValidationError(message)
+    async def google_sign_in(
+        self, session: AsyncSession, payload: GoogleSignInRequest
+    ) -> AuthResponse:
+        """Exchange a verified Google ID token for our own session.
 
+        One endpoint for both "first time here" and "welcome back", returning
+        200 either way. A 201-on-create would tell any caller holding a valid
+        token whether that account already existed, which is an account
+        enumeration oracle for the price of a status code.
+        """
+        identity = await self.google.verify(payload.id_token)
+
+        user = (
+            await session.execute(select(User).where(User.google_sub == identity.sub))
+        ).scalar_one_or_none()
+
+        if user is None:
+            user = await self._create_google_user(session, identity)
+        else:
+            # Google is authoritative for both of these and either can change.
+            user.email = identity.email
+            user.display_name = identity.display_name
+            await session.flush()
+
+        raw_refresh, _ = await self._issue_refresh(session, user.id)
+        access = self.jwt.encode_access_token(user.id)
+        await session.commit()
+        return AuthResponse(access=access, refresh=raw_refresh, user=self._user_dto(user))
+
+    async def _create_google_user(
+        self, session: AsyncSession, identity: GoogleIdentity
+    ) -> User:
         user = User(
-            email=payload.email,
-            password_hash=PasswordManager.hash_password(payload.password),
-            display_name=payload.display_name,
+            email=identity.email,
+            google_sub=identity.sub,
+            display_name=identity.display_name,
         )
         session.add(user)
         try:
             await session.flush()
         except IntegrityError as exc:
-            # Let the unique index decide, not a prior SELECT — a check-then-act
-            # loses to a concurrent registration of the same address.
+            # Let the unique indexes decide rather than a prior SELECT — a
+            # check-then-act loses to a concurrent sign-in.
+            #
+            # Reaching here means the email is taken by a DIFFERENT google_sub
+            # (the sub was just looked up and missed). Two Google accounts
+            # cannot share a verified address, so in practice this is a Workspace
+            # address that moved between accounts. Refusing is right: silently
+            # reassigning the row would hand one person another's transactions.
             await session.rollback()
-            raise ConflictError("An account with that email already exists.") from exc
-
-        raw_refresh, _ = await self._issue_refresh(session, user.id)
-        access = self.jwt.encode_access_token(user.id)
-        await session.commit()
-        return AuthResponse(access=access, refresh=raw_refresh, user=self._user_dto(user))
-
-    # ── login ─────────────────────────────────────────────────────────────
-
-    async def login(self, session: AsyncSession, payload: LoginRequest) -> AuthResponse:
-        user = (
-            await session.execute(select(User).where(User.email == payload.email))
-        ).scalar_one_or_none()
-
-        if user is None:
-            # Spend the same time as a real verification would, then fail with
-            # the identical message, so this endpoint cannot enumerate accounts.
-            PasswordManager.waste_time()
-            raise AuthError("Incorrect email or password.")
-
-        if not PasswordManager.verify_password(payload.password, user.password_hash):
-            raise AuthError("Incorrect email or password.")
-
-        raw_refresh, _ = await self._issue_refresh(session, user.id)
-        access = self.jwt.encode_access_token(user.id)
-        await session.commit()
-        return AuthResponse(access=access, refresh=raw_refresh, user=self._user_dto(user))
+            raise ConflictError(
+                "That email address is already linked to a different Google account."
+            ) from exc
+        return user
 
     # ── refresh (rotating, with reuse detection) ──────────────────────────
 

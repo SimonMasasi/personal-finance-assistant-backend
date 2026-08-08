@@ -14,6 +14,7 @@ import pytest
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from config import SETTINGS
@@ -72,10 +73,10 @@ def scratch_db() -> Iterator[None]:
 
 
 class TestMigrationsAgainstPopulatedDatabase:
-    async def test_0002_applies_to_a_database_that_already_has_users(
+    async def test_migrations_apply_to_a_database_that_already_has_password_users(
         self, scratch_db: None
     ) -> None:
-        """Stop at 0001, insert a real row, then apply 0002 on top of it.
+        """Stop at 0001, insert a real password-era row, then apply the rest.
 
         A migration that only ever runs against an empty database proves
         nothing about the upgrade every deployment after the first performs.
@@ -86,6 +87,7 @@ class TestMigrationsAgainstPopulatedDatabase:
         engine = create_async_engine(_scratch_url())
         try:
             async with engine.begin() as conn:
+                # Valid at 0001, where password_hash still exists.
                 await conn.execute(
                     text(
                         "INSERT INTO users (id, email, password_hash, display_name) "
@@ -97,15 +99,36 @@ class TestMigrationsAgainstPopulatedDatabase:
             assert result.returncode == 0, result.stderr
 
             async with engine.connect() as conn:
-                # The pre-existing row survived the upgrade.
+                # The password-era row is GONE, and that is the point of 0003,
+                # not a bug: it has no Google identity and no way to obtain one,
+                # so there is nothing it could ever sign in with again.
                 survivors = await conn.execute(
                     text("SELECT count(*) FROM users WHERE email = 'legacy@example.com'")
                 )
-                assert survivors.scalar_one() == 1
+                assert survivors.scalar_one() == 0
 
                 # And the new table is usable, sequence and all.
                 seq = await conn.execute(text("SELECT nextval('transaction_sync_seq')"))
                 assert seq.scalar_one() >= 1
+
+            # The migrated schema actually enforces one account per Google
+            # subject. Nothing else in the suite exercises this index against
+            # real DDL rather than the ORM's idea of it.
+            async with engine.begin() as conn:
+                await conn.execute(
+                    text(
+                        "INSERT INTO users (id, email, google_sub, display_name) "
+                        "VALUES (gen_random_uuid(), 'a@example.com', 'sub-1', 'A')"
+                    )
+                )
+            with pytest.raises(IntegrityError):
+                async with engine.begin() as conn:
+                    await conn.execute(
+                        text(
+                            "INSERT INTO users (id, email, google_sub, display_name) "
+                            "VALUES (gen_random_uuid(), 'b@example.com', 'sub-1', 'B')"
+                        )
+                    )
         finally:
             await engine.dispose()
 

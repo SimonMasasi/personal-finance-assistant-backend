@@ -18,7 +18,16 @@ class User(Base, TimestampMixin):
     # lives in the database, so no code path can create "A@b.com" alongside
     # "a@b.com" by forgetting to normalise first.
     email: Mapped[str] = mapped_column(CITEXT, unique=True, nullable=False)
-    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Google's stable subject identifier. This, not the email, is the identity:
+    # a user can change their Google email address and must keep their account.
+    #
+    # `unique=True, index=True` renders as one unique INDEX, matching
+    # RefreshToken.token_hash below — a combination migration 0001 already
+    # proved produces no autogenerate drift. A named UniqueConstraint is where
+    # Alembic's name matching turns ambiguous, and test_migrations.py checks.
+    google_sub: Mapped[str] = mapped_column(
+        String(255), unique=True, index=True, nullable=False
+    )
     display_name: Mapped[str] = mapped_column(String(255), nullable=False)
 
 

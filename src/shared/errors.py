@@ -56,6 +56,20 @@ class ValidationError(AppError):
     code = "invalid_input"
 
 
+class ServiceUnavailableError(AppError):
+    """An upstream we depend on is down — currently only Google's key endpoint.
+
+    503 rather than a bare 500, and emphatically not 401. The client already
+    treats `status >= 500` as retryable and 401 as "sign the user out"
+    (src/services/http.ts). Reporting a Google outage as 401 would sign out
+    every user for the duration of it; as 503 they back off and retry, which is
+    what the situation actually calls for.
+    """
+
+    status_code = 503
+    code = "service_unavailable"
+
+
 def _body(code: str, message: str) -> dict[str, dict[str, str]]:
     return {"error": {"code": code, "message": message}}
 
