@@ -5,4 +5,8 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 .env
+# Any real env file. The committed templates are re-included below.
+.env.*
+!.env.example
+!.env.production.example
 .DS_Store

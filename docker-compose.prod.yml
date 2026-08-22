@@ -1,0 +1,47 @@
+# Production overlay. Use with the base file, never on its own:
+#
+#   docker compose --env-file .env.production \
+#     -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# .env.production lives on the server and is never committed; see
+# .env.production.example for the keys it must define. It is passed twice, for
+# two different jobs:
+#
+#   --env-file  → substitutes ${...} below, at the time compose reads this file
+#   env_file:   → injects the whole file as environment inside the container
+#
+# Only the api gets env_file. Postgres is handed the three POSTGRES_* values by
+# name instead, so SECRET_KEY does not end up readable in `docker inspect db`.
+#
+# The tags matter throughout: compose MERGES mappings across files rather than
+# replacing them, and `environment:` beats `env_file:` — so without them the dev
+# SECRET_KEY hardcoded in the base file would silently outrank the real one.
+# `!reset` DELETES a key (and discards anything written under it); `!override`
+# replaces it wholesale. Mixing the two up drops the setting silently.
+services:
+  db:
+    environment: !override
+      # `:?` fails the deploy loudly instead of booting Postgres with defaults.
+      POSTGRES_USER: ${POSTGRES_USER:?required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+      POSTGRES_DB: ${POSTGRES_DB:?required}
+    healthcheck:
+      # The base file's check hardcodes -U pfa -d pfa. $$ escapes compose's own
+      # interpolation so the shell inside the container expands these, keeping
+      # the check honest if the credentials above ever change.
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+    # The base file publishes 5433 for local psql. In production nothing
+    # outside the compose network has any business reaching Postgres; the api
+    # container still reaches it as db:5432 over the internal network.
+    ports: !reset []
+    restart: unless-stopped
+
+  api:
+    env_file: .env.production
+    environment: !reset {}
+    # Bound to loopback, not 0.0.0.0: TLS termination belongs to a reverse
+    # proxy on the host. Publishing 8000 publicly would serve the API in the
+    # clear, and bearer tokens sent over plain HTTP are bearer tokens given away.
+    ports: !override
+      - "127.0.0.1:8000:8000"
+    restart: unless-stopped
