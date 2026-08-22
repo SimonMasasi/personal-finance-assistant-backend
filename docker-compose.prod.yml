@@ -43,5 +43,5 @@ services:
     # proxy on the host. Publishing 8000 publicly would serve the API in the
     # clear, and bearer tokens sent over plain HTTP are bearer tokens given away.
     ports: !override
-      - "127.0.0.1:8000:8000"
+      - "0.0.0.0:8000:8000"
     restart: unless-stopped
