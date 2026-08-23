@@ -34,7 +34,7 @@ services:
     # outside the compose network has any business reaching Postgres; the api
     # container still reaches it as db:5432 over the internal network.
     ports: !reset []
-    restart: unless-stopped
+    restart: always
 
   api:
     env_file: .env.production
@@ -44,4 +44,4 @@ services:
     # clear, and bearer tokens sent over plain HTTP are bearer tokens given away.
     ports: !override
       - "0.0.0.0:8000:8000"
-    restart: unless-stopped
+    restart: always
