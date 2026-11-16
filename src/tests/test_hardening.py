@@ -103,7 +103,7 @@ class TestPrivacyInvariant:
         assert not offenders, f"raw-text-capable fields exposed: {offenders}"
 
     async def test_transactions_table_has_no_text_columns(self) -> None:
-        from src.modules.sync.models import Transaction
+        from src.modules.transactions.models import Transaction
 
         columns = set(Transaction.__table__.columns.keys())
         assert not (columns & {"body", "title", "raw_text", "capture_id"})
@@ -128,7 +128,7 @@ class TestTenantScopingIsStructural:
         """
         from sqlalchemy import Table, UniqueConstraint
 
-        from src.modules.sync.models import Transaction
+        from src.modules.transactions.models import Transaction
 
         # __table__ is typed as FromClause on the declarative base; the concrete
         # Table is what carries .constraints and .indexes.

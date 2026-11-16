@@ -23,7 +23,7 @@ from src.core.config import SETTINGS
 # Without them the metadata is empty and the comparison below reports every
 # table as "should be dropped" rather than comparing anything.
 from src.modules.auth.models import Device, RefreshToken, User  # noqa: F401,E402
-from src.modules.sync.models import Transaction  # noqa: F401,E402
+from src.modules.transactions.models import Transaction  # noqa: F401,E402
 from src.shared.base_model import Base
 from src.tests.conftest import PROJECT_ROOT, _admin_dsn
 

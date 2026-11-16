@@ -96,3 +96,33 @@ class Transaction(Base):
     # Deliberately absent, and must stay absent: `body`, `title`, `raw_text`,
     # `capture_id`, and the client's local rowid. Raw message text never leaves
     # the device; adding any of these is a privacy regression, not a feature.
+
+
+class SharedTransactions(Base):
+
+    __tablename__ = "shared_transactions"
+
+
+    id: Mapped[uuid_lib.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid_lib.uuid4
+    )
+    user_id: Mapped[uuid_lib.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+
+    uuid: Mapped[str] = mapped_column(String(36), nullable=False)
+
+
+    transaction_id : Mapped[uuid_lib.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("transactions.id", ondelete="CASCADE"), nullable=False
+    )
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    # Tombstone. Non-null means deleted. There is no hard DELETE path anywhere
+    # in this service — a hard delete cannot propagate, so the row would simply
+    # return from the other side on the next sync.
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+
+

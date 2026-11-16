@@ -74,3 +74,9 @@ class SyncResponse(BaseModel):
     # should sync again immediately with the returned cursor rather than waiting
     # for its next scheduled sync.
     has_more: bool = False
+
+
+class SharedTransactions(BaseModel):
+
+    uuid: str = Field(min_length=1, max_length=36)
+

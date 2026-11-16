@@ -6,7 +6,7 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 import src.modules.auth.models  # noqa: F401  (each module's models register on Base.metadata)
-import src.modules.sync.models  # noqa: F401
+import src.modules.transactions.models  # noqa: F401
 from alembic import context
 from src.core.config import SETTINGS
 from src.shared.base_model import Base
