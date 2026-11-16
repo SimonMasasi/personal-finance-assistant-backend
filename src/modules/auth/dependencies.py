@@ -4,8 +4,8 @@ from typing import Annotated
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from src.modules.auth.tokens import JWTAuth
 from src.shared.errors import AuthError
-from src.utils.jwt_auth import JWTAuth
 
 # auto_error=False so a missing header raises our AuthError (401 with the
 # documented body shape) rather than FastAPI's bare 403.

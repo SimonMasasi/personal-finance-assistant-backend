@@ -6,7 +6,7 @@ on somebody's account, so it is deliberately explicit: every claim that matters
 is checked here, in the open, rather than inside a library's defaults.
 
 Why PyJWT rather than `google-auth`: PyJWT is already this project's JWT library
-(`src/utils/jwt_auth.py`), and `google-auth` carries no HTTP transport of its
+(`src/modules/auth/tokens.py`), and `google-auth` carries no HTTP transport of its
 own — it would pull in `requests` plus four transitive packages to do what
 `PyJWKClient` already does. One JWT library, one mental model.
 """
@@ -19,7 +19,7 @@ import jwt
 from jwt import PyJWKClient
 from jwt.exceptions import PyJWKClientConnectionError, PyJWKClientError
 
-from config import SETTINGS
+from src.core.config import SETTINGS
 from src.shared.errors import AuthError, ServiceUnavailableError
 
 logger = logging.getLogger(__name__)

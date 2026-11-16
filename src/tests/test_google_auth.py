@@ -15,9 +15,9 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from jwt import PyJWKClient
 from jwt.exceptions import PyJWKClientConnectionError, PyJWKClientError
 
+from src.modules.auth import google as google_auth
+from src.modules.auth.google import GoogleIdTokenVerifier
 from src.shared.errors import AuthError, ServiceUnavailableError
-from src.utils import google_auth
-from src.utils.google_auth import GoogleIdTokenVerifier
 
 AUDIENCE = "test-web-client.apps.googleusercontent.com"
 

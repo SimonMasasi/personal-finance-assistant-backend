@@ -12,7 +12,7 @@ DEVICES_URL = "/v1/devices"
 
 class TestGoogleSignIn:
     """The verifier is stubbed here (see conftest); signature checking lives in
-    unit/test_google_auth.py. These cover what happens once a token is trusted."""
+    test_google_auth.py. These cover what happens once a token is trusted."""
 
     async def test_first_sign_in_creates_the_account(self, client: AsyncClient) -> None:
         response = await client.post(

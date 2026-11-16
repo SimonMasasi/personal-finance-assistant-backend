@@ -3,10 +3,10 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.modules.auth.dependencies import CurrentUserId
 from src.modules.sync.dtos import SyncRequest, SyncResponse
 from src.modules.sync.services import SyncService
 from src.shared.database import get_session
-from src.shared.dependencies import CurrentUserId
 
 sync_router = APIRouter(prefix="/v1", tags=["sync"])
 sync_service = SyncService()

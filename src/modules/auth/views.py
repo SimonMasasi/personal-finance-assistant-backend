@@ -3,7 +3,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config import SETTINGS
+from src.core.config import SETTINGS
+from src.modules.auth.dependencies import CurrentUserId
 from src.modules.auth.dtos import (
     AuthResponse,
     DeviceRequest,
@@ -13,7 +14,6 @@ from src.modules.auth.dtos import (
 )
 from src.modules.auth.services import AuthService
 from src.shared.database import get_session
-from src.shared.dependencies import CurrentUserId
 from src.shared.rate_limit import limiter
 
 auth_router = APIRouter(prefix="/v1", tags=["auth"])

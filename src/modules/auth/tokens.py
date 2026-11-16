@@ -14,7 +14,7 @@ from typing import Any
 
 import jwt
 
-from config import SETTINGS
+from src.core.config import SETTINGS
 from src.shared.errors import AuthError
 
 

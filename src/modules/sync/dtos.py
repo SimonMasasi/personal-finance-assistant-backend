@@ -2,7 +2,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt
 
-from config import SETTINGS
+from src.core.config import SETTINGS
 
 # The values the client actually produces. Both lists are validated but NOT
 # enforced: `providerLabel()` on the client falls back to rendering the raw id

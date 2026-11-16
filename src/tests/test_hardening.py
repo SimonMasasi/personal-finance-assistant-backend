@@ -5,7 +5,7 @@ from typing import cast
 import pytest
 from httpx import AsyncClient
 
-from config import SETTINGS
+from src.core.config import SETTINGS
 from src.tests.conftest import auth_headers, register_user
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")
@@ -45,7 +45,7 @@ class TestRateLimitConfiguration:
     rather than trying to trip a limiter that has been deliberately loosened."""
 
     async def test_auth_routes_are_decorated_with_a_limit(self) -> None:
-        import app as _app  # noqa: F401  — importing registers the routes
+        import src.main as _app  # noqa: F401  — importing registers the routes
         from src.shared.rate_limit import limiter
 
         registered = set(limiter._route_limits)
@@ -56,7 +56,7 @@ class TestRateLimitConfiguration:
     async def test_sync_is_not_rate_limited(self) -> None:
         """Deliberate. A client draining a backlog issues many syncs in a row,
         and the batch cap plus the body-size limit already bound the work."""
-        import app as _app  # noqa: F401
+        import src.main as _app  # noqa: F401
         from src.shared.rate_limit import limiter
 
         assert "src.modules.sync.views.sync" not in set(limiter._route_limits)
@@ -89,7 +89,7 @@ class TestPrivacyInvariant:
         that could carry a notification body. Asserting it against the OpenAPI
         schema means a future endpoint that adds one fails this test.
         """
-        from app import app
+        from src.main import app
 
         schema = app.openapi()
         forbidden = {"body", "title", "raw_text", "message", "text", "capture_id"}

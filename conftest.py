@@ -1,6 +1,6 @@
 """Root conftest.
 
-This runs before `config.py` is imported anywhere, which is the only window in
+This runs before `src/core/config.py` is imported anywhere, which is the only window in
 which the test environment can be pinned. `setdefault` rather than assignment so
 a real environment variable (CI) still wins over these defaults.
 """
@@ -21,7 +21,7 @@ os.environ.setdefault("RATE_LIMIT_GOOGLE", "10000/minute")
 os.environ.setdefault("RATE_LIMIT_REFRESH", "10000/minute")
 
 # Required in production, so it must be pinned here or collection dies at
-# config.py import. The value is the audience the fake tokens are minted for.
+# src/core/config.py import. The value is the audience the fake tokens are minted for.
 os.environ.setdefault(
     "GOOGLE_CLIENT_IDS", "test-web-client.apps.googleusercontent.com"
 )

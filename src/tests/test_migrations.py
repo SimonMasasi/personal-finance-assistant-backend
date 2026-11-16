@@ -17,7 +17,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from config import SETTINGS
+from src.core.config import SETTINGS
 
 # Imported for their side effect: each registers its tables on Base.metadata.
 # Without them the metadata is empty and the comparison below reports every

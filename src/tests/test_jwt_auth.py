@@ -5,9 +5,9 @@ from unittest.mock import patch
 import jwt
 import pytest
 
-from config import SETTINGS
+from src.core.config import SETTINGS
+from src.modules.auth.tokens import JWTAuth
 from src.shared.errors import AuthError
-from src.utils.jwt_auth import JWTAuth
 
 
 @pytest.fixture
@@ -26,7 +26,7 @@ class TestAccessTokens:
 
     def test_expired_token_is_rejected(self, auth: JWTAuth) -> None:
         past = datetime.now(tz=UTC) - timedelta(hours=2)
-        with patch("src.utils.jwt_auth.datetime") as mock_datetime:
+        with patch("src.modules.auth.tokens.datetime") as mock_datetime:
             mock_datetime.now.return_value = past
             token = auth.encode_access_token(uuid_lib.uuid4())
 

@@ -48,10 +48,8 @@ plugins = ["pydantic.mypy"]
 disallow_untyped_defs = true
 warn_unused_ignores = true
 warn_redundant_casts = true
-# src/modules/* and src/utils/* are namespace packages with no __init__.py, the
-# same layout the reference backend uses. Without these two settings mypy sees
-# src/modules/auth/views.py and src/modules/health/views.py as one module named
-# "views" and refuses to check anything.
+# Resolve modules from the repo root (`src.modules.auth.views`), the same way
+# the app and the tests import them, so every module has one name.
 explicit_package_bases = true
 mypy_path = "."
 # Alembic's generated migration modules are not worth annotating.

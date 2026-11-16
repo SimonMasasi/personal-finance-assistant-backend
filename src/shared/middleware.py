@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
-from config import SETTINGS
+from src.core.config import SETTINGS
 
 
 class BodySizeLimitMiddleware(BaseHTTPMiddleware):

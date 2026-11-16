@@ -14,24 +14,20 @@ It deliberately calls the SAME two functions the endpoint calls, rather than
 reimplementing token issuance — so a token it prints is indistinguishable from
 one a real sign-in produces, and it cannot drift from the real thing.
 
-    uv run python scripts/mint_test_session.py --email live@example.com
-    eval "$(uv run python scripts/mint_test_session.py --email live@example.com)"
+    uv run python -m src.modules.auth.mint_test_session --email live@example.com
+    eval "$(uv run python -m src.modules.auth.mint_test_session --email live@example.com)"
 """
 
 import argparse
 import asyncio
 import json
-import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from sqlalchemy import select
 
-from sqlalchemy import select  # noqa: E402
-
-from config import SETTINGS  # noqa: E402
-from src.modules.auth.models import User  # noqa: E402
-from src.modules.auth.services import AuthService  # noqa: E402
-from src.shared.database import SessionFactory  # noqa: E402
+from src.core.config import SETTINGS
+from src.modules.auth.models import User
+from src.modules.auth.services import AuthService
+from src.shared.database import SessionFactory
 
 # Google's `sub` is a numeric string, so this can never collide with a real one.
 LOCAL_SUB_PREFIX = "local-test-"

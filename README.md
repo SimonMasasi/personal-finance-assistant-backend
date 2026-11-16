@@ -76,7 +76,7 @@ that project deliberately. Four of its conventions are not, and each has a reaso
 - **Real HTTP status codes.** meeting-assistant returns 200 with `status: false`. A phone on a
   mobile network needs to distinguish "token expired, refresh and retry" (401) from "batch too
   big, split it" (413) from "server broke, back off" (500).
-- **Migrations do not run at import time in `app.py`.** Running them implicitly on boot makes it
+- **Migrations do not run at import time in `src/main.py`.** Running them implicitly on boot makes it
   easy to never notice one is missing. Compose and CI run `alembic upgrade head` explicitly.
 
 ---
@@ -93,27 +93,33 @@ that project deliberately. Four of its conventions are not, and each has a reaso
 
 ```
 personal-finance-assistant-backend/
-├── app.py                     # FastAPI app: middleware, router loop, uvicorn entry
-├── config.py                  # pydantic-settings Settings + SETTINGS singleton
-├── conftest.py                # ROOT conftest: pins env vars before config.py imports
-├── alembic/versions/          # 0001 users+auth, 0002 transactions+sync_seq
-├── docker-compose.yml         # api + postgres
+├── conftest.py                # ROOT conftest: pins env vars before src/core/config.py imports
+├── alembic/versions/          # 0001 users+auth, 0002 transactions+sync_seq, 0003 google auth
+├── docker/
+│   ├── docker-compose.yml     # api + postgres (run from the repo root with -f)
+│   └── docker-compose.prod.yml  # production overlay
 └── src/
+    ├── main.py                # FastAPI app: middleware, router loop, uvicorn entry
+    ├── core/
+    │   ├── config.py          # pydantic-settings Settings + SETTINGS singleton
+    │   └── logging.py         # JSON logging + hard redaction
     ├── modules/
-    │   ├── auth/              # dtos, models, services, views
+    │   ├── auth/              # dtos, models, services, views, plus:
+    │   │   ├── dependencies.py      # get_current_user_id / CurrentUserId
+    │   │   ├── tokens.py            # our own JWTs (JWTAuth)
+    │   │   ├── google.py            # Google ID token verification
+    │   │   └── mint_test_session.py # dev tool: python -m src.modules.auth.mint_test_session
     │   ├── sync/              # dtos, models, services, views  ← the substance
     │   └── health/            # views
     ├── shared/
     │   ├── base_model.py      # DeclarativeBase + TimestampMixin
     │   ├── database.py        # async engine, session factory, get_session
-    │   ├── dependencies.py    # get_current_user_id
     │   ├── errors.py          # AppError hierarchy + global handlers
-    │   ├── logging.py         # JSON logging + hard redaction
     │   ├── middleware.py      # body size cap
     │   ├── rate_limit.py      # slowapi limiter
     │   ├── routes.py          # the router registry
     │   └── time.py            # epoch-ms <-> datetime, THE single conversion point
-    ├── utils/                 # jwt_auth, passwords, open_api_routes, startup_banner
+    ├── utils/                 # open_api_routes, startup_banner
     └── tests/
 ```
 
@@ -159,7 +165,7 @@ CORS_ALLOW_ORIGINS="*"    # the Android client sends no Origin; this is for brow
 ```bash
 cp .env.example .env          # then edit SECRET_KEY
 uv sync
-docker compose up -d db
+docker compose -f docker/docker-compose.yml up -d db
 uv run alembic upgrade head
 ```
 
@@ -168,13 +174,13 @@ uv run alembic upgrade head
 ## Running
 
 ```bash
-uv run python app.py          # http://localhost:8000, docs at /scalar
+uv run python -m src.main     # http://localhost:8000, docs at /scalar
 ```
 
 Or the whole stack, with migrations applied on boot:
 
 ```bash
-docker compose up --build
+docker compose -f docker/docker-compose.yml up --build
 ```
 
 ---
@@ -205,10 +211,10 @@ the tests. `src/tests/test_migrations.py` enforces two things worth knowing abou
 ## Running tests
 
 ```bash
-docker compose up -d db     # tests need a real Postgres
+docker compose -f docker/docker-compose.yml up -d db   # tests need a real Postgres
 uv run pytest -q
 uv run pytest src/tests/test_sync.py -q          # the acceptance criteria
-uv run pytest src/tests/unit -q                  # pure logic, no database
+uv run pytest src/tests/test_time.py src/tests/test_jwt_auth.py src/tests/test_google_auth.py src/tests/test_logging.py -q  # pure logic
 uv run pytest -k "tombstone or resurrect" -v
 uv run ruff check . && uv run mypy .
 ```
@@ -400,7 +406,7 @@ Sign-in needs a real Google token, which an unattended test cannot obtain. Rathe
 than add a debug bypass to the endpoint, mint one directly:
 
 ```bash
-eval "$(uv run python scripts/mint_test_session.py --email live@example.com)"
+eval "$(uv run python -m src.modules.auth.mint_test_session --email live@example.com)"
 ```
 
 It calls the same two functions `/v1/auth/google` calls, so its tokens are

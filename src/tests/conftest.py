@@ -10,9 +10,9 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 
-from config import SETTINGS
+from src.core.config import SETTINGS
+from src.modules.auth.google import GoogleIdentity
 from src.shared.errors import AuthError
-from src.utils.google_auth import GoogleIdentity
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -89,7 +89,7 @@ async def clean_db(_migrated_database: None) -> AsyncIterator[None]:
 
 @pytest_asyncio.fixture(loop_scope="session")
 async def client() -> AsyncIterator[AsyncClient]:
-    from app import app
+    from src.main import app
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
@@ -103,7 +103,7 @@ def google_token(
 
     Deliberately not a real JWT: a test that mints something JWT-shaped invites
     the reader to think signature verification is being exercised here. It is
-    not, and it should not be — that is `unit/test_google_auth.py`'s job, with
+    not, and it should not be — that is `test_google_auth.py`'s job, with
     real RSA keys. These tests are about what happens *after* a token verifies.
     """
     return f"test|{sub or f'sub-{email}'}|{email}|{display_name}"

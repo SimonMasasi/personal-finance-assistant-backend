@@ -4,7 +4,7 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config import SETTINGS
+from src.core.config import SETTINGS
 from src.modules.sync.dtos import SyncRequest, SyncResponse, TransactionDTO
 from src.modules.sync.models import SYNC_SEQ, Transaction
 from src.shared.errors import PayloadTooLargeError, ValidationError

@@ -1,6 +1,6 @@
 import logging
 
-from src.shared.logging import JsonFormatter, RedactingFilter, redact
+from src.core.logging import JsonFormatter, RedactingFilter, redact
 
 
 class TestRedaction:

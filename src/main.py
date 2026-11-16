@@ -8,9 +8,9 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
-from config import SETTINGS
+from src.core.config import SETTINGS
+from src.core.logging import configure_logging
 from src.shared.errors import register_error_handlers
-from src.shared.logging import configure_logging
 from src.shared.middleware import BodySizeLimitMiddleware
 from src.shared.rate_limit import limiter
 from src.shared.routes import routes
@@ -61,7 +61,7 @@ app.openapi = lambda: custom_openapi(app)  # type: ignore[method-assign]
 
 if __name__ == "__main__":
     uvicorn.run(
-        "app:app",
+        "src.main:app",
         host=SETTINGS.APP_HOST,
         port=SETTINGS.APP_PORT,
         log_level="debug" if SETTINGS.DEBUG else "info",

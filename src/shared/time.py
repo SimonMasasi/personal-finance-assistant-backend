@@ -5,7 +5,7 @@ Postgres stores them as `TIMESTAMPTZ`. Getting that conversion wrong by a factor
 of 1000 is silent — no error, no exception, just every chart in the app plotting
 dates in 1970 or the far future. Keeping both directions in one small tested
 module is the mitigation: there is exactly one line to audit, and
-`unit/test_time.py` round-trips a real millisecond value through it.
+`src/tests/test_time.py` round-trips a real millisecond value through it.
 
 `TIMESTAMPTZ` has microsecond precision, so milliseconds round-trip exactly.
 """

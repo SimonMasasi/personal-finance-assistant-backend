@@ -1,9 +1,10 @@
 # Production overlay. Use with the base file, never on its own:
 #
 #   docker compose --env-file .env.production \
-#     -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#     -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up -d --build
 #
-# .env.production lives on the server and is never committed; see
+# Run from the repository root. .env.production lives there, on the server,
+# and is never committed; see
 # .env.production.example for the keys it must define. It is passed twice, for
 # two different jobs:
 #
@@ -37,7 +38,8 @@ services:
     restart: always
 
   api:
-    env_file: .env.production
+    # Relative to docker/ (this file's directory), so up one level to the root.
+    env_file: ../.env.production
     environment: !reset {}
     # Bound to loopback, not 0.0.0.0: TLS termination belongs to a reverse
     # proxy on the host. Publishing 8000 publicly would serve the API in the

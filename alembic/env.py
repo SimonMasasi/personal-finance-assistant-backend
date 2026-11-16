@@ -5,13 +5,10 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+import src.modules.auth.models  # noqa: F401  (each module's models register on Base.metadata)
+import src.modules.sync.models  # noqa: F401
 from alembic import context
-from config import SETTINGS
-
-# Imported for their side effect: each module registers its tables on
-# Base.metadata, and autogenerate sees nothing without them.
-from src.modules.auth.models import Device, RefreshToken, User  # noqa: F401
-from src.modules.sync.models import Transaction  # noqa: F401
+from src.core.config import SETTINGS
 from src.shared.base_model import Base
 
 config = context.config

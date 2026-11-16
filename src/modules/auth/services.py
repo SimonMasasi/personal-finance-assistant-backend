@@ -13,10 +13,10 @@ from src.modules.auth.dtos import (
     TokenPairResponse,
     UserDTO,
 )
+from src.modules.auth.google import GoogleIdentity, GoogleIdTokenVerifier
 from src.modules.auth.models import Device, RefreshToken, User
+from src.modules.auth.tokens import JWTAuth
 from src.shared.errors import AuthError, ConflictError
-from src.utils.google_auth import GoogleIdentity, GoogleIdTokenVerifier
-from src.utils.jwt_auth import JWTAuth
 
 
 class AuthService:
